@@ -111,6 +111,11 @@
 //! - [`#[cbor(cbor_len)]`](#cborcbor_len--path)
 //! - [`#[cbor(crate = "...")]`](#cborcrate--path)
 //!
+//! Enum variants with an explicit discriminant can omit their index attribute.
+//! Integer literals and constant expressions supply the numeric CBOR index, which
+//! must fit `i64`. Explicit index attributes override discriminants; `text_keys`
+//! retains its string-key behavior. Implicit Rust discriminants are not inferred.
+//!
 //! ## `#[n(...)]` and `#[b(...)]` (or `#[cbor(n(...))]` and `#[cbor(b(...))]`)
 //!
 //! Each field and variant needs to be annotated with an index number, which is
@@ -540,6 +545,7 @@ extern crate proc_macro;
 mod decode;
 mod encode;
 mod cbor_len;
+mod max_cbor_len;
 
 pub(crate) mod attrs;
 pub(crate) mod fields;
@@ -578,6 +584,18 @@ enum Mode {
 #[proc_macro_derive(CborLen, attributes(n, b, s, cbor))]
 pub fn derive_cbor_len(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     cbor_len::derive_from(input)
+}
+
+/// Derive the `minicbor::MaxCborLen` trait for a struct or enum.
+///
+/// Computes the maximum possible CBOR encoding length as a compile-time constant.
+/// This is useful for allocating fixed-size buffers in `no_std` environments
+/// without `alloc`. All field types must also implement `MaxCborLen`.
+///
+/// See the [crate] documentation for details.
+#[proc_macro_derive(MaxCborLen, attributes(n, b, cbor))]
+pub fn derive_max_cbor_len(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    max_cbor_len::derive_from(input)
 }
 
 // Helpers ////////////////////////////////////////////////////////////////////

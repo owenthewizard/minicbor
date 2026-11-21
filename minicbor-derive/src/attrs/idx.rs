@@ -2,10 +2,11 @@ use proc_macro2::Span;
 use quote::{ToTokens, TokenStreamExt, quote};
 use std::collections::HashSet;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Index {
     Num(Idx),
-    Str(String)
+    Str(String),
+    Expr(syn::Expr)
 }
 
 impl Index {
@@ -14,7 +15,7 @@ impl Index {
     }
 
     pub fn is_num(&self) -> bool {
-        matches!(self, Self::Num(_))
+        matches!(self, Self::Num(_) | Self::Expr(_))
     }
 
     pub fn is_b(&self) -> bool {
@@ -30,7 +31,7 @@ impl Index {
 
     pub fn to_method(&self) -> proc_macro2::TokenStream {
         match self {
-            Self::Num(_) => quote!(i64),
+            Self::Num(_) | Self::Expr(_) => quote!(i64),
             Self::Str(_) => quote!(str)
         }
     }
@@ -40,6 +41,7 @@ impl ToTokens for Index {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match self {
             Self::Num(i) => i.to_tokens(tokens),
+            Self::Expr(e) => e.to_tokens(tokens),
             Self::Str(s) => tokens.append(proc_macro2::Literal::string(s))
         }
     }
@@ -97,6 +99,7 @@ where
                 numeric.insert(i.val());
                 num_ctr += 1;
             }
+            Index::Expr(_) => {},
             Index::Str(s) => {
                 strings.insert(s);
                 str_ctr += 1

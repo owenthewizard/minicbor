@@ -170,14 +170,15 @@ fn on_enum(inp: &mut syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
         let encoding = attrs.encoding().unwrap_or(enum_encoding);
         let con = &var.ident;
         let tag = decode_tag(attrs);
+        let pattern = if idx.is_str() { quote!(#idx) } else { quote!(__index if __index == #idx) };
         let row = if let syn::Fields::Unit = var.fields {
             if text_keys {
                 // text_keys: unit variant matched by string, no payload to skip
-                quote!(#idx => Ok(#name::#con),)
+                quote!(#pattern => Ok(#name::#con),)
             } else if index_only | flat {
-                quote!(#idx => Ok(#name::#con),)
+                quote!(#pattern => Ok(#name::#con),)
             } else {
-                quote!(#idx => {
+                quote!(#pattern => {
                     #tag
                     __d777.skip()?;
                     Ok(#name::#con)
@@ -214,7 +215,7 @@ fn on_enum(inp: &mut syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
                     }
                 });
                 quote! {
-                    #idx => {
+                    #pattern => {
                         #tag
                         #statements
                         Ok(#name::#con {
@@ -235,7 +236,7 @@ fn on_enum(inp: &mut syn::DeriveInput) -> syn::Result<proc_macro2::TokenStream> 
                 let pref = format!("{name}::{con}");
                 let expr = field_inits(&pref, &fields);
                 quote! {
-                    #idx => {
+                    #pattern => {
                         #tag
                         #statements
                         Ok(#name::#con(#expr))
