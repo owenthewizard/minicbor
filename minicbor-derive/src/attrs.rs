@@ -48,7 +48,9 @@ pub enum Kind {
     SkipIf,
     Flat,
     Default,
-    Crate
+    Crate,
+    TextKeys,
+    Key
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +72,9 @@ enum Value {
     SkipIf(Option<syn::ExprPath>, proc_macro2::Span),
     Flat(proc_macro2::Span),
     Default(proc_macro2::Span),
-    Crate(syn::Path, proc_macro2::Span)
+    Crate(syn::Path, proc_macro2::Span),
+    TextKeys(proc_macro2::Span),
+    Key(String, proc_macro2::Span)
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -139,6 +143,14 @@ impl Attributes {
             && let Some(Value::Encoding(Encoding::Map, s)) = this.get(Kind::Encoding)
         {
             return Err(syn::Error::new(*s, "flat enum does not support map encoding"))
+        }
+        if let Some(Value::TextKeys(s)) = this.get(Kind::TextKeys) {
+            if this.contains_key(Kind::Transparent) {
+                return Err(syn::Error::new(*s, "`text_keys` and `transparent` are mutually exclusive"))
+            }
+            if this.contains_key(Kind::IndexOnly) {
+                return Err(syn::Error::new(*s, "`text_keys` and `index_only` are mutually exclusive"))
+            }
         }
         // `skip_if` triggers the creation of a custom codec where `encode` and `decode`
         // correspond to the default routines, `is_nil` is defined via `skip_if`'s
@@ -387,6 +399,11 @@ impl Attributes {
                 attrs.try_insert(Kind::Skip, Value::Skip(meta.path.span()))?
             } else if meta.path.is_ident("flat") {
                 attrs.try_insert(Kind::Flat, Value::Flat(meta.path.span()))?
+            } else if meta.path.is_ident("text_keys") {
+                attrs.try_insert(Kind::TextKeys, Value::TextKeys(meta.path.span()))?
+            } else if meta.path.is_ident("key") {
+                let s: LitStr = meta.value()?.parse()?;
+                attrs.try_insert(Kind::Key, Value::Key(s.value(), meta.path.span()))?
             } else if meta.path.is_ident("default") {
                 attrs.try_insert(Kind::Default, Value::Default(meta.path.span()))?
             } else if meta.path.is_ident("crate") {
@@ -468,6 +485,23 @@ impl Attributes {
         }
     }
 
+    pub fn text_keys(&self) -> bool {
+        self.contains_key(Kind::TextKeys)
+    }
+
+    /// Effective encoding: text_keys implies Map.
+    pub fn effective_encoding(&self) -> Encoding {
+        if self.text_keys() {
+            Encoding::Map
+        } else {
+            self.encoding().unwrap_or_default()
+        }
+    }
+
+    pub fn key(&self) -> Option<&str> {
+        self.get(Kind::Key).and_then(|v| v.key())
+    }
+
     fn contains_key(&self, k: Kind) -> bool {
         self.attrs.contains_key(&k)
     }
@@ -492,6 +526,7 @@ impl Attributes {
                 | Kind::ContextBound
                 | Kind::Tag
                 | Kind::Crate
+                | Kind::TextKeys
                 => {}
                 | Kind::Borrow
                 | Kind::TypeParam
@@ -506,6 +541,7 @@ impl Attributes {
                 | Kind::SkipIf
                 | Kind::Flat
                 | Kind::Default
+                | Kind::Key
                 => {
                     let msg = format!("attribute is not supported on {}-level", self.level);
                     return Err(syn::Error::new(val.span(), msg))
@@ -524,6 +560,7 @@ impl Attributes {
                 | Kind::Skip
                 | Kind::SkipIf
                 | Kind::Default
+                | Kind::Key
                 => {}
                 | Kind::Encoding
                 | Kind::IndexOnly
@@ -531,6 +568,7 @@ impl Attributes {
                 | Kind::ContextBound
                 | Kind::Flat
                 | Kind::Crate
+                | Kind::TextKeys
                 => {
                     let msg = format!("attribute is not supported on {}-level", self.level);
                     return Err(syn::Error::new(val.span(), msg))
@@ -543,6 +581,7 @@ impl Attributes {
                 | Kind::Tag
                 | Kind::Flat
                 | Kind::Crate
+                | Kind::TextKeys
                 => {}
                 | Kind::Borrow
                 | Kind::TypeParam
@@ -556,6 +595,7 @@ impl Attributes {
                 | Kind::Skip
                 | Kind::SkipIf
                 | Kind::Default
+                | Kind::Key
                 => {
                     let msg = format!("attribute is not supported on {}-level", self.level);
                     return Err(syn::Error::new(val.span(), msg))
@@ -565,6 +605,7 @@ impl Attributes {
                 | Kind::Encoding
                 | Kind::Index
                 | Kind::Tag
+                | Kind::Key
                 => {}
                 | Kind::Borrow
                 | Kind::TypeParam
@@ -581,6 +622,7 @@ impl Attributes {
                 | Kind::Flat
                 | Kind::Default
                 | Kind::Crate
+                | Kind::TextKeys
                 => {
                     let msg = format!("attribute is not supported on {}-level", self.level);
                     return Err(syn::Error::new(val.span(), msg))
@@ -758,7 +800,9 @@ impl Value {
             Value::SkipIf(_, s)       => *s,
             Value::Flat(s)            => *s,
             Value::Default(s)         => *s,
-            Value::Crate(_, s)        => *s
+            Value::Crate(_, s)        => *s,
+            Value::TextKeys(s)        => *s,
+            Value::Key(_, s)          => *s
         }
     }
 
@@ -821,6 +865,14 @@ impl Value {
     fn tag(&self) -> Option<u64> {
         if let Value::Tag(x, _) = self {
             Some(*x)
+        } else {
+            None
+        }
+    }
+
+    fn key(&self) -> Option<&str> {
+        if let Value::Key(s, _) = self {
+            Some(s)
         } else {
             None
         }
