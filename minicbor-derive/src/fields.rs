@@ -109,6 +109,7 @@ impl Fields {
             (Index::Num(i), Index::Num(j)) => i.bytewise_lexicographic().cmp(&j.bytewise_lexicographic()),
             (Index::Str(a), Index::Str(b)) => a.cmp(b),
             (Index::Str(_), Index::Num(_)) => Ordering::Greater,
+            (Index::Expr(_), _) | (_, Index::Expr(_)) => unreachable!("field discriminant"),
             (Index::Num(_), Index::Str(_)) => Ordering::Less
         });
 

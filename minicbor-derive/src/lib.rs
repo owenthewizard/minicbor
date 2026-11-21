@@ -111,6 +111,11 @@
 //! - [`#[cbor(cbor_len)]`](#cborcbor_len--path)
 //! - [`#[cbor(crate = "...")]`](#cborcrate--path)
 //!
+//! Enum variants with an explicit discriminant can omit their index attribute.
+//! Integer literals and constant expressions supply the numeric CBOR index, which
+//! must fit `i64`. Explicit index attributes override discriminants; `text_keys`
+//! retains its string-key behavior. Implicit Rust discriminants are not inferred.
+//!
 //! ## `#[n(...)]` and `#[b(...)]` (or `#[cbor(n(...))]` and `#[cbor(b(...))]`)
 //!
 //! Each field and variant needs to be annotated with an index number, which is

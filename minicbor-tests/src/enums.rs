@@ -180,3 +180,22 @@ enum BE3<'a, T, U> {
     #[n(3)] D ( #[n(0)] T ),
     #[n(4)] E { #[n(0)] field: U }
 }
+
+#[test]
+fn explicit_discriminant_indices() {
+    const BASE: isize = 40;
+    #[derive(Debug, PartialEq, Encode, Decode, CborLen)]
+    #[cbor(index_only)]
+    enum Discriminant {
+        Zero = 0,
+        Answer = BASE + 2,
+        Negative = -7,
+        #[n(99)] Override = 8,
+    }
+    for (value, index) in [(Discriminant::Zero, 0i64), (Discriminant::Answer, 42), (Discriminant::Negative, -7), (Discriminant::Override, 99)] {
+        let bytes = minicbor::to_vec(&value).unwrap();
+        assert_eq!(bytes, minicbor::to_vec(index).unwrap());
+        assert_eq!(value.cbor_len(&mut ()), bytes.len());
+        assert_eq!(minicbor::decode::<Discriminant>(&bytes).unwrap(), value);
+    }
+}

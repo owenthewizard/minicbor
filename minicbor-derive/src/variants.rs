@@ -34,6 +34,13 @@ impl Variants {
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| v.ident.to_string());
                 Index::Str(key)
+            } else if let Some((_, expr)) = &v.discriminant {
+                Index::Expr(syn::parse_quote!(const {
+                    let value = #expr;
+                    let index = value as i64;
+                    assert!((index as i128) == (value as i128) && (index < 0) == (value < 0), "discriminant does not fit i64");
+                    index
+                }))
             } else {
                 return Err(syn::Error::new(v.ident.span(), "missing `#[n(...)]`, `#[b(...)]`, or `#[s(...)]` attribute"))
             };
@@ -56,6 +63,25 @@ impl Variants {
         }
 
         idx::check_uniq(span, &indices)?;
+        let numeric: Vec<_> = indices.iter().filter(|i| i.is_num()).cloned().collect();
+        for index in &mut indices {
+            if let Index::Expr(expr) = index {
+                let original = expr.clone();
+                *expr = syn::parse_quote!(const {
+                    let indices: &[i64] = &[#(#numeric),*];
+                    let mut i = 0;
+                    while i < indices.len() {
+                        let mut j = i + 1;
+                        while j < indices.len() {
+                            assert!(indices[i] != indices[j], "duplicate index numbers");
+                            j += 1;
+                        }
+                        i += 1;
+                    }
+                    #original
+                });
+            }
+        }
 
         Ok(Variants { indices, attrs })
     }
